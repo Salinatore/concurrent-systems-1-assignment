@@ -8,12 +8,12 @@ TRAVELLING = (release_lift -> LIFT | alarm -> ALARM),
 ALARM = (travel_to_ground_floor -> open_door -> resolved -> LIFT). 
 // it is not modelled that the user leaves through the door after the doors open
 
-USER = (press_lift_button -> acquire_lift -> USER_TRAVELLING),
+USER = (press_lift_button -> acquire_lift -> USER_SELECTING),
+USER_SELECTING = (press_button_floor[f:FLOORS] -> USER_TRAVELLING | alarm -> USER),
 USER_TRAVELLING = (release_lift -> USER | alarm -> USER). 
 
 ||SYSTEM = (a:USER || b:USER || {a,b}::LIFT)
-            /{press_button_floor[f:FLOORS] / {a,b}.press_button_floor[f],
-			travel_to_ground_floor / {a,b}.travel_to_ground_floor,
+            /{travel_to_ground_floor / {a,b}.travel_to_ground_floor,
 			open_door / {a,b}.open_door,
 			alarm_with_no_one_in / {a,b}.alarm_with_no_one_in,
 			resolved / {a,b}.resolved}.

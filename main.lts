@@ -1,19 +1,24 @@
 const N_FLOOR = 3
 range FLOORS = 0..N_FLOOR
 
+const N_QUEUE = 1
+range QUEUES = 0..N_QUEUE 
+
 const M = 5
 range RM = 0..M
+
+set Users = {a,b}
 
 //
 LIFT = (acquire_lift -> SELECT_FLOOR | alarm_with_no_one_in -> ALARM),
 SELECT_FLOOR = (press_button_floor[f:FLOORS] -> TRAVELLING | alarm -> ALARM),
 TRAVELLING = (release_lift -> LIFT | alarm -> ALARM),
-ALARM = (travel_to_ground_floor -> open_door -> resolved -> LIFT). 
+ALARM = (travel_to_ground_floor -> open_door -> resolved -> LIFT).
 // it is not modelled that the user leaves through the door after the doors open
 
 //
 SCREEN = SERVED[0],
-SERVED[ts:RM] = (serving[ts] -> acquire_lift -> SERVED[ts + 1]). 
+SERVED[ts:RM] = (serving[ts] -> acquire_lift -> SERVED[ts + 1]).
 
 TICKET_MACHINE = TICKET[0],
 TICKET[t:RM] = (get_ticket[t] -> TICKET[t + 1]).
@@ -22,9 +27,9 @@ TICKET[t:RM] = (get_ticket[t] -> TICKET[t + 1]).
 USER = (get_ticket[t:RM] -> USER_IN_QUEUE[t]),
 USER_IN_QUEUE[t:RM] = (serving[t] -> acquire_lift -> USER_SELECTING),
 USER_SELECTING = (press_button_floor[f:FLOORS] -> USER_TRAVELLING | alarm -> USER),
-USER_TRAVELLING = (release_lift -> USER | alarm -> USER). 
+USER_TRAVELLING = (release_lift -> USER | alarm -> USER).
 
-||SYSTEM = (a:USER || b:USER || {a,b}::SCREEN || {a,b}::TICKET_MACHINE || {a,b}::LIFT)
+||SYSTEM = (Users:USER || Users::SCREEN || Users::TICKET_MACHINE || Users::LIFT)
             /{travel_to_ground_floor / {a,b}.travel_to_ground_floor,
 			open_door / {a,b}.open_door,
 			alarm_with_no_one_in / {a,b}.alarm_with_no_one_in,

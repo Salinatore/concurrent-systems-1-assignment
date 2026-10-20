@@ -1,57 +1,41 @@
 const N_FLOOR = 3
-range FLOORS = 0..N_FLOOR
+range FLOORS = 0..N_FLOOR-1
 
-const N_QUEUE = 1
-range QUEUES = 0..N_QUEUE 
+const M = 2             
+range RM = 0..M-1
 
-const M = 5
-range RM = 0..M
+set Users = {a,b}
 
-set FirstFloorUsers = {a,b}
-set SecondFloorUsers = {c,d}
-set Users = {a,b,c,d}
 
-//
-LIFT = (acquire_lift -> SELECT_FLOOR | alarm_with_no_one_in -> ALARM),
+LIFT = (acquire_lift[f:FLOORS] -> SELECT_FLOOR
+       | alarm_with_no_one_in -> ALARM),
 SELECT_FLOOR = (press_button_floor[f:FLOORS] -> TRAVELLING | alarm -> ALARM),
-TRAVELLING = (release_lift -> LIFT | alarm -> ALARM),
+TRAVELLING   = (release_lift -> LIFT | alarm -> ALARM),
 ALARM = (travel_to_ground_floor -> open_door -> resolved -> LIFT).
-// it is not modelled that the user leaves through the door after the doors open
 
-//
-SCREEN_1_FL = SERVED[0],
-SERVED[ts:RM] = (first.serving[ts] -> acquire_lift -> SERVED[ts + 1]).
 
-TICKET_MACHINE_1_FL = TICKET[0],
-TICKET[t:RM] = (first.get_ticket[t] -> TICKET[t + 1]).
+SCREEN(F=0) = SERVED[0],
+SERVED[ts:RM] = (when (ts == M-1) serving[F][ts] -> acquire_lift[F] -> END
+				|when (ts < M-1) serving[F][ts] -> acquire_lift[F] -> SERVED[(ts+1)]).
 
-SCREEN_2_FL = SERVED[0],
-SERVED[ts:RM] = (second.serving[ts] -> acquire_lift -> SERVED[ts + 1]).
+||SCREENS = (forall[f:FLOORS] SCREEN(f)).
 
-TICKET_MACHINE_2_FL = TICKET[0],
-TICKET[t:RM] = (second.get_ticket[t] -> TICKET[t + 1]).
-//
 
-//
-USER_1_FL = (first.get_ticket[t:RM] -> USER_IN_QUEUE[t]),
-USER_IN_QUEUE[t:RM] = (first.serving[t] -> acquire_lift -> USER_SELECTING),
-USER_SELECTING = (press_button_floor[f:FLOORS] -> USER_TRAVELLING | alarm -> END),
-USER_TRAVELLING = (release_lift -> END | alarm -> END).
 
-USER_2_FL = (second.get_ticket[t:RM] -> USER_IN_QUEUE[t]),
-USER_IN_QUEUE[t:RM] = (second.serving[t] -> acquire_lift -> USER_SELECTING),
-USER_SELECTING = (press_button_floor[f:FLOORS] -> USER_TRAVELLING | alarm -> END),
-USER_TRAVELLING = (release_lift -> END | alarm -> END).
-//
+TICKET_MACHINE(F=0) = TICKET[0],
+TICKET[t:RM] = (when (t == M-1) get_ticket[F][t] -> END
+				|when (t < M-1) get_ticket[F][t] -> TICKET[(t+1)]).
 
-||USERS = (FirstFloorUsers:USER_1_FL || SecondFloorUsers:USER_2_FL).
+||TICKET_MACHINES = (forall[f:FLOORS] TICKET_MACHINE(f)).
 
-||FIRST_FLOOR = (FirstFloorUsers::SCREEN_1_FL || FirstFloorUsers::TICKET_MACHINE_1_FL).
 
-||SECOND_FLOOR = (SecondFloorUsers::SCREEN_2_FL || SecondFloorUsers::TICKET_MACHINE_2_FL).
+USER = (get_ticket[f:FLOORS][t:RM] -> USER_IN_QUEUE[f][t]),
+USER_IN_QUEUE[f:FLOORS][t:RM] = (serving[f][t] -> acquire_lift[f] -> USER_SELECTING),
+USER_SELECTING  = (press_button_floor[f:FLOORS] -> USER_TRAVELLING | alarm -> USER),
+USER_TRAVELLING = (release_lift -> USER | alarm -> USER).
 
-||SYSTEM = (USERS || FIRST_FLOOR || SECOND_FLOOR || Users::LIFT)
-            /{travel_to_ground_floor / Users.travel_to_ground_floor,
-			open_door / Users.open_door,
-			alarm_with_no_one_in / Users.alarm_with_no_one_in,
-			resolved / Users.resolved}.
+||SYSTEM = (Users:USER  || Users::TICKET_MACHINES  || Users::SCREENS || Users::LIFT)
+           /{travel_to_ground_floor / {a,b}.travel_to_ground_floor,
+             open_door              / {a,b}.open_door,
+             alarm_with_no_one_in   / {a,b}.alarm_with_no_one_in,
+             resolved               / {a,b}.resolved}.

@@ -1,0 +1,51 @@
+// ---------- Parameters ----------
+const N = 3                    // number of floors above ground (0 = ground)
+const M = 2                    // users per floor
+
+range FLOORS  = 0..N           // all floors the lift can reach
+range UFLOORS = 1..N           // floors where users wait
+range UIDX    = 1..M           // user index on a floor
+range T       = 0..M           // ticket counter values (0..M)
+range TK      = 0..M-1         // valid ticket numbers
+
+// every user is named u[floor][index]
+set Users = {u[UFLOORS][UIDX]}
+
+// ---------- Lift ----------
+LIFT = (acquire_lift -> SELECT_FLOOR
+       | alarm_with_no_one_in -> ALARM),
+SELECT_FLOOR = (press_button_floor[f:FLOORS] -> TRAVELLING
+               | alarm -> ALARM),
+TRAVELLING = (release_lift -> LIFT
+             | alarm -> ALARM),
+ALARM = (travel_to_ground_floor -> open_door -> resolved -> LIFT).
+
+// ---------- Floor equipment (one copy per floor) ----------
+// guards stop the counters at M, so no out-of-range index is ever produced
+TICKET_MACHINE = TICKET[0],
+TICKET[t:T] = (when (t < M) get_ticket[t] -> TICKET[t+1]).
+
+SCREEN = SERVED[0],
+SERVED[s:T] = (when (s < M) serving[s] -> acquire_lift -> SERVED[s+1]).
+
+// ---------- User ----------
+USER = (get_ticket[t:TK] -> IN_QUEUE[t]),
+IN_QUEUE[t:TK] = (serving[t] -> acquire_lift -> SELECTING),
+SELECTING  = (press_button_floor[f:FLOORS] -> TRAVELLING
+             | alarm -> END),
+TRAVELLING = (release_lift -> END
+             | alarm -> END).
+
+// ---------- Composition ----------
+||USERS = (forall[f:UFLOORS][i:UIDX] u[f][i]:USER).
+
+// the equipment of floor F is shared by exactly the users of floor F
+||FLOOR(F=1) = ({u[F][UIDX]}::TICKET_MACHINE || {u[F][UIDX]}::SCREEN).
+
+||SYSTEM = (USERS
+           || forall[f:UFLOORS] FLOOR(f)
+           || Users::LIFT)
+           /{travel_to_ground_floor / Users.travel_to_ground_floor,
+             open_door              / Users.open_door,
+             alarm_with_no_one_in   / Users.alarm_with_no_one_in,
+             resolved               / Users.resolved}.

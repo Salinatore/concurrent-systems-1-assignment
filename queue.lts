@@ -1,9 +1,0 @@
-const M = 5
-range M = 0..M
-
-SERVED[ts:RM] = (serving[ts] -> served -> SERVED[ts + 1]). //served = acquire_lift 
-
-TICKET[t:RM] = (get_ticket[t] -> TICKET[t + 1])
-
-
-

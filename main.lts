@@ -7,7 +7,9 @@ range QUEUES = 0..N_QUEUE
 const M = 5
 range RM = 0..M
 
-set Users = {a,b}
+set FirstFloorUsers = {a,b}
+set SecondFloorUsers = {c,d}
+set Users = {a,b,c,d}
 
 //
 LIFT = (acquire_lift -> SELECT_FLOOR | alarm_with_no_one_in -> ALARM),
@@ -17,20 +19,39 @@ ALARM = (travel_to_ground_floor -> open_door -> resolved -> LIFT).
 // it is not modelled that the user leaves through the door after the doors open
 
 //
-SCREEN = SERVED[0],
-SERVED[ts:RM] = (serving[ts] -> acquire_lift -> SERVED[ts + 1]).
+SCREEN_1_FL = SERVED[0],
+SERVED[ts:RM] = (first.serving[ts] -> acquire_lift -> SERVED[ts + 1]).
 
-TICKET_MACHINE = TICKET[0],
-TICKET[t:RM] = (get_ticket[t] -> TICKET[t + 1]).
+TICKET_MACHINE_1_FL = TICKET[0],
+TICKET[t:RM] = (first.get_ticket[t] -> TICKET[t + 1]).
+
+SCREEN_2_FL = SERVED[0],
+SERVED[ts:RM] = (second.serving[ts] -> acquire_lift -> SERVED[ts + 1]).
+
+TICKET_MACHINE_2_FL = TICKET[0],
+TICKET[t:RM] = (second.get_ticket[t] -> TICKET[t + 1]).
 //
 
-USER = (get_ticket[t:RM] -> USER_IN_QUEUE[t]),
-USER_IN_QUEUE[t:RM] = (serving[t] -> acquire_lift -> USER_SELECTING),
-USER_SELECTING = (press_button_floor[f:FLOORS] -> USER_TRAVELLING | alarm -> USER),
-USER_TRAVELLING = (release_lift -> USER | alarm -> USER).
+//
+USER_1_FL = (first.get_ticket[t:RM] -> USER_IN_QUEUE[t]),
+USER_IN_QUEUE[t:RM] = (first.serving[t] -> acquire_lift -> USER_SELECTING),
+USER_SELECTING = (press_button_floor[f:FLOORS] -> USER_TRAVELLING | alarm -> END),
+USER_TRAVELLING = (release_lift -> END | alarm -> END).
 
-||SYSTEM = (Users:USER || Users::SCREEN || Users::TICKET_MACHINE || Users::LIFT)
-            /{travel_to_ground_floor / {a,b}.travel_to_ground_floor,
-			open_door / {a,b}.open_door,
-			alarm_with_no_one_in / {a,b}.alarm_with_no_one_in,
-			resolved / {a,b}.resolved}.
+USER_2_FL = (second.get_ticket[t:RM] -> USER_IN_QUEUE[t]),
+USER_IN_QUEUE[t:RM] = (second.serving[t] -> acquire_lift -> USER_SELECTING),
+USER_SELECTING = (press_button_floor[f:FLOORS] -> USER_TRAVELLING | alarm -> END),
+USER_TRAVELLING = (release_lift -> END | alarm -> END).
+//
+
+||USERS = (FirstFloorUsers:USER_1_FL || SecondFloorUsers:USER_2_FL).
+
+||FIRST_FLOOR = (FirstFloorUsers::SCREEN_1_FL || FirstFloorUsers::TICKET_MACHINE_1_FL).
+
+||SECOND_FLOOR = (SecondFloorUsers::SCREEN_2_FL || SecondFloorUsers::TICKET_MACHINE_2_FL).
+
+||SYSTEM = (USERS || FIRST_FLOOR || SECOND_FLOOR || Users::LIFT)
+            /{travel_to_ground_floor / Users.travel_to_ground_floor,
+			open_door / Users.open_door,
+			alarm_with_no_one_in / Users.alarm_with_no_one_in,
+			resolved / Users.resolved}.

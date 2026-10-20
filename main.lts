@@ -1,41 +1,82 @@
+// Number of floors in the building
 const N_FLOOR = 3
+// Floors are numbered 0..N_FLOOR-1 (0 = ground floor)
 range FLOORS = 0..N_FLOOR-1
 
-const M = 2             
+// Number of tickets available per floor (queue capacity)
+const M = 2
+// Ticket numbers (used as "now serving" numbers)
 range RM = 0..M-1
 
+// The set of users in the system
+// You can add users here (e.g. {a,b,c}); everything else adapts automatically
 set Users = {a,b}
 
+// ---------- Lift system ----------
+// The lift is a single shared resource
+// An alarm can interrupt it at any stage 
+LIFT = (acquire_lift[f:FLOORS] -> SELECT_FLOOR     
+       | alarm_with_no_one_in -> ALARM), // alarm can also be raised when the lift is empty
+SELECT_FLOOR = (press_button_floor[f:FLOORS] -> TRAVELLING
+               | alarm -> ALARM),
+TRAVELLING   = (release_lift -> LIFT
+               | alarm -> ALARM),
+ALARM = (travel_to_ground_floor -> open_door -> resolved -> LIFT). 
+// It is not modeled that the user leaves through the door after the doors open
+//
 
-LIFT = (acquire_lift[f:FLOORS] -> SELECT_FLOOR
-       | alarm_with_no_one_in -> ALARM),
-SELECT_FLOOR = (press_button_floor[f:FLOORS] -> TRAVELLING | alarm -> ALARM),
-TRAVELLING   = (release_lift -> LIFT | alarm -> ALARM),
-ALARM = (travel_to_ground_floor -> open_door -> resolved -> LIFT).
-
-
+// ---------- Ticket system ----------
+// SCREEN: the "now serving" display on floor F
 SCREEN(F=0) = SERVED[0],
-SERVED[ts:RM] = (when (ts == M-1) serving[F][ts] -> acquire_lift[F] -> END
-				|when (ts < M-1) serving[F][ts] -> acquire_lift[F] -> SERVED[(ts+1)]).
+SERVED[ts:RM] = (when (ts == M-1) serving[F][ts] -> acquire_lift[F] -> END    // last ticket: process terminates
+				|when (ts < M-1) serving[F][ts] -> acquire_lift[F] -> SERVED[ts+1]). // otherwise move on to the next ticket
 
+// One screen per floor
 ||SCREENS = (forall[f:FLOORS] SCREEN(f)).
 
-
-
+// TICKET_MACHINE: dispenses tickets on floor F in increasing order (0..M-1)
+// Once all M tickets are handed out, the machine stops (END)
 TICKET_MACHINE(F=0) = TICKET[0],
-TICKET[t:RM] = (when (t == M-1) get_ticket[F][t] -> END
-				|when (t < M-1) get_ticket[F][t] -> TICKET[(t+1)]).
+TICKET[t:RM] = (when (t == M-1) get_ticket[F][t] -> END                      
+				|when (t < M-1) get_ticket[F][t] -> TICKET[(t+1)]).          
 
+// One ticket machine per floor
 ||TICKET_MACHINES = (forall[f:FLOORS] TICKET_MACHINE(f)).
+//
 
-
-USER = (get_ticket[f:FLOORS][t:RM] -> USER_IN_QUEUE[f][t]),
+// ---------- Users ----------
+USER = (get_ticket[f:FLOORS][t:RM] -> USER_IN_QUEUE[f][t]),         // take ticket t on floor f
+// Wait until the screen on floor f shows our ticket, then enter the lift
 USER_IN_QUEUE[f:FLOORS][t:RM] = (serving[f][t] -> acquire_lift[f] -> USER_SELECTING),
+// Inside the lift: press a destination button, or the alarm interrupts (user restarts)
 USER_SELECTING  = (press_button_floor[f:FLOORS] -> USER_TRAVELLING | alarm -> USER),
+// Travelling: leave the lift normally, or the alarm interrupts (user restarts)
 USER_TRAVELLING = (release_lift -> USER | alarm -> USER).
+// The user process never ends to make it easier to use the animator
+//
 
+// ---------- Full system composition ----------
+// The relabelling at the end strips the user prefix from the alarm-related
+// actions, so they become global events that every user sees at the same time
 ||SYSTEM = (Users:USER  || Users::TICKET_MACHINES  || Users::SCREENS || Users::LIFT)
-           /{travel_to_ground_floor / {a,b}.travel_to_ground_floor,
-             open_door              / {a,b}.open_door,
-             alarm_with_no_one_in   / {a,b}.alarm_with_no_one_in,
-             resolved               / {a,b}.resolved}.
+           /{travel_to_ground_floor / Users.travel_to_ground_floor,
+             open_door              / Users.open_door,
+             alarm_with_no_one_in   / Users.alarm_with_no_one_in,
+             resolved               / Users.resolved}.
+
+// ---------- Properties ----------
+// Property 1
+fluent USER_A_IN_LIFT[f:FLOORS] = <a.acquire_lift[f], {a.release_lift, resolved}>
+fluent USER_B_IN_LIFT[f:FLOORS] = <b.acquire_lift[f], {b.release_lift, resolved}>
+
+assert LIFT_MUTEX = forall[f:FLOORS] forall[ftwo:FLOORS] []!(USER_A_IN_LIFT[f] && USER_B_IN_LIFT[ftwo])
+
+// Property 2
+// from now on we pick "a" for example, all Users behave the same)
+assert EVENTUALLY_ARRIVE = forall[f:FLOORS] forall[t:RM] [](a.serving[f][t] -> <> a.acquire_lift[f])
+
+// Property 3
+assert TRAVELLING = forall[f:FLOORS] [](a.press_button_floor[f] -> <> (a.release_lift || a.alarm))
+
+// Property 4
+assert FROM_QUEUE_TO_LIFT = forall[f:FLOORS] forall[t:RM] [](a.get_ticket[f][t] -> <> a.acquire_lift[f])

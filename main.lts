@@ -46,7 +46,7 @@ TICKET[t:RM] = (when (t == M-1) get_ticket[F][t] -> END
 
 // ---------- Users ----------
 USER = (get_ticket[f:FLOORS][t:RM] -> USER_IN_QUEUE[f][t]),         // take ticket t on floor f
-// Wait until the screen on floor f shows our ticket, then enter the lift
+// Wait until the screen on floor f shows ticket t, then enter the lift
 USER_IN_QUEUE[f:FLOORS][t:RM] = (serving[f][t] -> acquire_lift[f] -> USER_SELECTING),
 // Inside the lift: press a destination button, or the alarm interrupts (user restarts)
 USER_SELECTING  = (press_button_floor[f:FLOORS] -> USER_TRAVELLING | alarm -> USER),
